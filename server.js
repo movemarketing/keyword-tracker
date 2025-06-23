@@ -1,9 +1,9 @@
-const express = require('express');
+ const express = require('express');
 const axios = require('axios');
 const app = express();
 
 const PORT = process.env.PORT || 3000;
-const API_KEY = 'fd36552b-4d6a-4f9b-9e38-9f130b2eba6c'; // direkte indsat API-nøgle
+const SERP_API_KEY = '1f97486f32421467619fa34ff931be824600f16e678014628b620bdf0d9f4411'; // ← Udskift med din egen nøgle
 
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
@@ -16,31 +16,29 @@ app.post('/check', async (req, res) => {
   const { keyword, domain } = req.body;
 
   try {
-    const response = await axios.post('https://api.scrapingrobot.com/', {
-      url: `https://www.google.com/search?q=${encodeURIComponent(keyword)}`,
-      module: 'GoogleSearch'
-    }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY
+    const response = await axios.get('https://serpapi.com/search', {
+      params: {
+        q: keyword,
+        engine: 'google',
+        api_key: SERP_API_KEY,
+        num: 100,
+        google_domain: 'google.com' // eller 'google.dk'
       }
     });
 
-    console.log('API response received.');
+    const results = response.data.organic_results || [];
 
-    const html = response.data.result;
-    if (!html) {
-      throw new Error("Tomt HTML-resultat fra ScrapingRobot.");
-    }
+    const positions = results
+      .map(r => ({ position: r.position, link: r.link }))
+      .filter(r => r.link.includes(domain));
 
-    const regex = new RegExp(`https?://(www\\.)?${domain.replace('.', '\\.')}`, 'gi');
-    const matches = [...html.matchAll(regex)];
+    const best = positions.length ? `#${positions[0].position}` : 'Ikke fundet';
 
-    const position = matches.length
-      ? `#${html.substr(0, matches[0].index).split('://').length}`
-      : 'Ikke fundet';
-
-    res.render('result', { keyword, domain, position });
+    res.render('result', {
+      keyword,
+      domain,
+      position: best
+    });
 
   } catch (error) {
     console.error('Fejl:', error.message);
